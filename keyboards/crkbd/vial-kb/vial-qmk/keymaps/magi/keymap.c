@@ -1,192 +1,223 @@
 #include QMK_KEYBOARD_H
+#include "os_detection.h"
 #include "unicode.h"
 #include "keymap_german.h"
 
-// Step 1: Define symbolic names
-enum alt_number_keys {
-    ALT_1 = LALT(KC_1),
-    ALT_2 = LALT(KC_2),
-    ALT_3 = LALT(KC_3),
-    ALT_4 = LALT(KC_4),
-    ALT_5 = LALT(KC_5),
+// ============================================================
+// OS Detection State
+// ============================================================
+static bool is_mac = false;
+
+// ============================================================
+// Custom keycodes for OS-dependent symbols
+// Only the 8 keycodes that differ between Mac and Win/Linux
+// ============================================================
+enum custom_keycodes {
+    MY_AT = SAFE_RANGE,   // @
+    MY_BSLS,              // Backslash
+    MY_LBRC,              // [
+    MY_RBRC,              // ]
+    MY_LCBR,              // {
+    MY_RCBR,              // }
+    MY_PIPE,              // |
+    MY_TILD,              // ~
 };
 
+// ALT+Number shortcuts for Layer 3
+#define ALT_1 LALT(KC_1)
+#define ALT_2 LALT(KC_2)
+#define ALT_3 LALT(KC_3)
+#define ALT_4 LALT(KC_4)
+#define ALT_5 LALT(KC_5)
 
-// Define a struct that maps a key
-// to the LED matrix index for your spiral.
+// Mac versions (from keymap_german_mac_iso.h):
+//   DE_AT   = A(DE_L)        ->  LALT(KC_L)
+//   DE_BSLS = S(A(DE_7))     ->  S(LALT(KC_7))
+//   DE_LBRC = A(DE_5)        ->  LALT(KC_5)
+//   DE_RBRC = A(DE_6)        ->  LALT(KC_6)
+//   DE_LCBR = A(DE_8)        ->  LALT(KC_8)
+//   DE_RCBR = A(DE_9)        ->  LALT(KC_9)
+//   DE_PIPE = A(DE_7)        ->  LALT(KC_7)
+//   DE_TILD = A(DE_N)        ->  LALT(KC_N)
+//
+// Win/Linux versions (from keymap_german.h) — used via DE_ directly:
+//   DE_AT   = ALGR(DE_Q)
+//   DE_BSLS = ALGR(DE_SS)
+//   DE_LBRC = ALGR(DE_8)
+//   DE_RBRC = ALGR(DE_9)
+//   DE_LCBR = ALGR(DE_7)
+//   DE_RCBR = ALGR(DE_0)
+//   DE_PIPE = ALGR(DE_LABK)
+//   DE_TILD = ALGR(DE_PLUS)
+
+// ============================================================
+// OS Detection Callback
+// ============================================================
+bool process_detected_host_os_user(os_variant_t detected_os) {
+    switch (detected_os) {
+        case OS_MACOS:
+        case OS_IOS:
+            is_mac = true;
+            set_unicode_input_mode(UNICODE_MODE_MACOS);
+            break;
+        case OS_WINDOWS:
+        case OS_LINUX:
+        default:
+            is_mac = false;
+            set_unicode_input_mode(UNICODE_MODE_LINUX);
+            break;
+    }
+    return true;
+}
+
+// ============================================================
+// Process custom keycodes — send OS-specific key combos
+// ============================================================
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case MY_AT:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_L)); }
+                else        { tap_code16(ALGR(KC_Q)); }
+            }
+            return false;
+        case MY_BSLS:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(S(LALT(KC_7))); }
+                else        { tap_code16(ALGR(KC_MINS)); } // DE_SS = KC_MINS
+            }
+            return false;
+        case MY_LBRC:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_5)); }
+                else        { tap_code16(ALGR(KC_8)); }
+            }
+            return false;
+        case MY_RBRC:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_6)); }
+                else        { tap_code16(ALGR(KC_9)); }
+            }
+            return false;
+        case MY_LCBR:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_8)); }
+                else        { tap_code16(ALGR(KC_7)); }
+            }
+            return false;
+        case MY_RCBR:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_9)); }
+                else        { tap_code16(ALGR(KC_0)); }
+            }
+            return false;
+        case MY_PIPE:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_7)); }
+                else        { tap_code16(ALGR(KC_NUBS)); } // DE_LABK = KC_NUBS
+            }
+            return false;
+        case MY_TILD:
+            if (record->event.pressed) {
+                if (is_mac) { tap_code16(LALT(KC_N)); }
+                else        { tap_code16(ALGR(KC_RBRC)); } // DE_PLUS = KC_RBRC
+            }
+            return false;
+    }
+    return true;
+}
+
+// ============================================================
+// LED spiral maps
+// ============================================================
 typedef struct {
-    uint16_t key;      // the key identifier (for example, the keycode from your layout)
-    uint8_t led_idx;   // the LED matrix index (0 to 22 for left half)
+    uint16_t key;
+    uint8_t led_idx;
 } key_led_map_t;
 
-// Mapping for the left half
 const key_led_map_t left_spiral_map[23] = {
-    { KC_SPC,   0 },  // Space
-    { KC_B,     1 },  // B
-    { KC_G,     2 },  // G
-    { KC_T,     3 },  // T
-    { KC_R,     4 },  // R
-    { KC_F,     5 },  // F
-    { KC_V,     6 },  // V
-    { MO(2),    7 },  // MO(2)^
-    { KC_LGUI,  8 },  // Win
-    { KC_C,     9 },  // C#pragma once
-// macOS-style Option+hex input
-#define UNICODE_SELECTED_MODES UNICODE_MODE_MACOS
-    { KC_D,    10 },  // D
-    { KC_E,    11 },  // E
-    { KC_W,    12 },  // W
-    { KC_S,    13 },  // S
-    { KC_X,    14 },  // X
-    { KC_Y,    15 },  // Y
-    { KC_A,    16 },  // A
-    { KC_Q,    17 },  // Q
-    { KC_TAB,  18 },  // Tab
-    { KC_LSFT, 19 },  // Shift
-    { KC_LCTL, 20 },  // Ctrl
-    { KC_ESC,  21 },  // Esc
-    { KC_DEL,  22 }   // Del
+    { KC_SPC,   0 },  { KC_B,     1 },  { KC_G,     2 },
+    { KC_T,     3 },  { KC_R,     4 },  { KC_F,     5 },
+    { KC_V,     6 },  { MO(2),    7 },  { KC_LGUI,  8 },
+    { KC_C,     9 },  { KC_D,    10 },  { KC_E,    11 },
+    { KC_W,    12 },  { KC_S,    13 },  { KC_X,    14 },
+    { KC_Y,    15 },  { KC_A,    16 },  { KC_Q,    17 },
+    { KC_TAB,  18 },  { KC_LSFT, 19 },  { KC_LCTL, 20 },
+    { KC_ESC,  21 },  { KC_DEL,  22 }
 };
 
-// Mapping for the right half
 const key_led_map_t right_spiral_map[23] = {
-    { KC_ENT,   23 },  // Enter
-    { KC_N,     24 },  // N
-    { KC_H,     25 },  // H
-    { KC_Z,     26 },  // Z
-    { KC_U,     27 },  // U
-    { KC_J,     28 },  // J
-    { KC_M,     29 },  // M
-    { MO(1),    30 },  // MO(1)
-    { KC_LALT,  31 },  // Alt
-    { KC_COMM,  32 },  // ,
-    { KC_K,     33 },  // K
-    { KC_I,     34 },  // I
-    { KC_O,     35 },  // O
-    { KC_L,     36 },  // L
-    { KC_DOT,   37 },  // . 
-    { KC_MINS,  38 },  // -
-    { DE_UDIA,  39 },  // Ü
-    { KC_P,     40 },  // P
-    { KC_BSPC,  41 },  // Backspace 
-    { DE_ADIA,  42 },  // Ä
-    { QK_REP,   43 },  // Repeat
-    { KC_HOME,  44 },  // Home
-    { KC_END,   45 }   // End
+    { KC_ENT,   23 },  { KC_N,     24 },  { KC_H,     25 },
+    { KC_Z,     26 },  { KC_U,     27 },  { KC_J,     28 },
+    { KC_M,     29 },  { MO(1),    30 },  { KC_LALT,  31 },
+    { KC_COMM,  32 },  { KC_K,     33 },  { KC_I,     34 },
+    { KC_O,     35 },  { KC_L,     36 },  { KC_DOT,   37 },
+    { KC_MINS,  38 },  { DE_UDIA,  39 },  { KC_P,     40 },
+    { KC_BSPC,  41 },  { DE_ADIA,  42 },  { QK_REP,   43 },
+    { KC_HOME,  44 },  { KC_END,   45 }
 };
 
-
+// ============================================================
+// RGB Matrix — color per key, with OS indicator
+// ============================================================
 #ifdef RGB_MATRIX_ENABLE
 bool rgb_matrix_indicators_user(void) {
-    
+
     for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
         if (i < 23) {
             uint16_t key = left_spiral_map[i].key;
             uint8_t led_idx = left_spiral_map[i].led_idx;
             switch (key) {
                 case KC_SPC:
-                    rgb_matrix_set_color(led_idx, 157, 124, 216); // violet
+                    rgb_matrix_set_color(led_idx, 157, 124, 216);
                     break;
                 case MO(2):
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_LGUI:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_LCTL:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_LSFT:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_TAB:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_DEL:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
+                    rgb_matrix_set_color(led_idx, 61, 89, 161);
                     break;
                 case KC_ESC:
-                    rgb_matrix_set_color(led_idx, 255, 0, 124); // pink
+                    rgb_matrix_set_color(led_idx, 255, 0, 124);
                     break;
                 default:
-                    rgb_matrix_set_color(led_idx, 79, 214, 190); // turquoise
+                    rgb_matrix_set_color(led_idx, 79, 214, 190);
             }
         } else {
-            uint16_t key = right_spiral_map[i -23].key;
-            uint8_t led_idx = right_spiral_map[i -23].led_idx;
+            uint16_t key = right_spiral_map[i - 23].key;
+            uint8_t led_idx = right_spiral_map[i - 23].led_idx;
             switch (key) {
                 case KC_ENT:
-                    rgb_matrix_set_color(led_idx, 94, 74, 130); // violet
+                    rgb_matrix_set_color(led_idx, 94, 74, 130);
                     break;
                 case MO(1):
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
-                case KC_LALT                                                                                                                                                                                                                    :
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
+                case KC_LALT:
                 case KC_BSPC:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_HOME:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
-                    break;
                 case KC_END:
-                    rgb_matrix_set_color(led_idx, 61, 89, 161); // blue
+                    rgb_matrix_set_color(led_idx, 61, 89, 161);
                     break;
                 case QK_REP:
-                    rgb_matrix_set_color(led_idx, 255, 0, 124); // pink
+                    rgb_matrix_set_color(led_idx, 255, 0, 124);
                     break;
                 default:
-                    rgb_matrix_set_color(led_idx, 79, 214, 190); // turquoise
+                    rgb_matrix_set_color(led_idx, 79, 214, 190);
             }
         }
     }
     return true;
 }
+
 void suspend_power_down_user(void) {
-    // code will run multiple times while keyboard is suspended
     rgb_matrix_mode(RGB_MATRIX_BAND_VAL);
 }
 #endif
-// Windows
-// [1] = LAYOUT_split_3x6_3_ex2(
-//     //,--------------------------------------------------------------.  ,--------------------------------------------------------------.
-//          KC_TAB, DE_AT  , DE_UNDS, DE_LBRC, DE_RBRC, DE_CIRC,  KC_ESC,    KC_HOME, DE_EXLM, DE_LABK, DE_RABK,  DE_EQL, DE_AMPR, KC_BSPC,
-//     //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-//         KC_LSFT, DE_BSLS, DE_SLSH, DE_LCBR, DE_RCBR, DE_ASTR, KC_DEL,      KC_END, DE_QUES, DE_LPRN, DE_RPRN,   DE_SS, DE_COLN, DE_UDIA,
-//     //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
-//         KC_LCTL, DE_HASH,  DE_DLR, DE_PIPE, DE_TILD,  DE_GRV,                      DE_PLUS, DE_PERC, DE_DQUO, DE_QUOT, DE_SCLN, QK_REP,
-//     //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
-//                                             KC_LGUI,   MO(3),  KC_SPC,     KC_ENT, XXXXXXX, KC_RGUI
-//                                         //`--------------------------'  `--------------------------'
-//   )
 
-// [1] = LAYOUT_split_3x6_3_ex2(
-//     //,--------------------------------------------------------------.  ,--------------------------------------------------------------.
-//         KC_TAB,ALGR(KC_Q),S(KC_MINS),KC_LBRC,KC_RBRC,KC_GRV,  KC_ESC,    KC_HOME,S(KC_1),S(KC_COMM),S(KC_DOT),KC_EQL, S(KC_7), KC_BSPC,
-//     //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-//         KC_LSFT,KC_BSLS,KC_SLSH,S(KC_LBRC),S(KC_RBRC),S(KC_8), KC_DEL,    KC_END,S(KC_SLASH),S(KC_9),S(KC_0), U_SZ,  S(KC_SCLN),U_UMLAUT_U,
-//     //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
-//         KC_LCTL,KC_NUHS,S(KC_4),S(KC_BSLS),S(KC_GRV),KC_GRV,                       KC_PPLS,S(KC_5),S(KC_QUOT),KC_QUOT,KC_SCLN,QK_REP,
-//     //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
-//                                             KC_LGUI,   MO(3),  KC_SPC,     KC_ENT, XXXXXXX, KC_RGUI
-//                                         //`--------------------------'  `--------------------------'
-//     ),
-
-//   [1] = LAYOUT_split_3x6_3_ex2(
-//   //,--------------------------------------------------------------.  ,--------------------------------------------------------------.
-//       KC_TAB,    KC_AT, KC_UNDS, KC_LBRC, KC_RBRC, KC_CIRC, KC_ESC,     KC_HOME, KC_EXLM,   KC_LT,   KC_GT,  KC_EQL,  KC_DLR, KC_BSPC,
-//   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-//       KC_LSFT, KC_BSLS, KC_SLSH, KC_LCBR, KC_RCBR, KC_ASTR,  KC_DEL,     KC_END,  KC_QUES, KC_LPRN, KC_RPRN,UM(U_SZ), KC_COLN,UM(U_UMLAUT_U),
-//   //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
-//       KC_LCTL,KC_HASH ,  KC_DLR, KC_PIPE, KC_TILD,  KC_GRV,                      KC_PLUS, KC_PERC,  KC_DQT, KC_QUOT, KC_SCLN,  QK_REP,
-//   //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
-//                                           KC_LGUI,   MO(3),  KC_SPC,     KC_ENT, XXXXXXX, KC_RGUI
-//                                       //`--------------------------'  `--------------------------'
-//   ),
-
-
-
+// ============================================================
+// Keymaps — using MY_ for OS-dependent keys, DE_ for shared
+// ============================================================
 #ifdef LAYOUT_split_3x6_3_ex2
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   [0] = LAYOUT_split_3x6_3_ex2(
@@ -199,19 +230,18 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
                                           KC_LGUI,   MO(2),  KC_SPC,     KC_ENT,   MO(1), KC_LALT
                                       //`--------------------------'  `--------------------------'
-
   ),
 
-[1] = LAYOUT_split_3x6_3_ex2(
-    //,--------------------------------------------------------------.  ,--------------------------------------------------------------.
-         KC_TAB, DE_AT  , DE_UNDS, DE_LBRC, DE_RBRC, DE_CIRC,  KC_ESC,    KC_HOME, DE_EXLM, DE_LABK, DE_RABK,  DE_EQL, DE_AMPR, KC_BSPC,
-    //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
-        KC_LSFT, DE_BSLS, DE_SLSH, DE_LCBR, DE_RCBR, DE_ASTR, KC_DEL,      KC_END, DE_QUES, DE_LPRN, DE_RPRN,   DE_SS, DE_COLN, DE_UDIA,
-    //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
-        KC_LCTL, DE_HASH,  DE_DLR, DE_PIPE, DE_TILD,  DE_GRV,                      DE_PLUS, DE_PERC, DE_DQUO, DE_QUOT, DE_SCLN, QK_REP,
-    //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
-                                            KC_LGUI,   MO(3),  KC_SPC,     KC_ENT, XXXXXXX, KC_RGUI
-                                        //`--------------------------'  `--------------------------'
+  [1] = LAYOUT_split_3x6_3_ex2(
+  //,--------------------------------------------------------------.  ,--------------------------------------------------------------.
+       KC_TAB, MY_AT  , DE_UNDS, MY_LBRC, MY_RBRC, DE_CIRC,  KC_ESC,    KC_HOME, DE_EXLM, DE_LABK, DE_RABK,  DE_EQL, DE_AMPR, KC_BSPC,
+  //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
+      KC_LSFT, MY_BSLS, DE_SLSH, MY_LCBR, MY_RCBR, DE_ASTR, KC_DEL,      KC_END, DE_QUES, DE_LPRN, DE_RPRN,   DE_SS, DE_COLN, DE_UDIA,
+  //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
+      KC_LCTL, DE_HASH,  DE_DLR, MY_PIPE, MY_TILD,  DE_GRV,                      DE_PLUS, DE_PERC, DE_DQUO, DE_QUOT, DE_SCLN, QK_REP,
+  //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
+                                          KC_LGUI,   MO(3),  KC_SPC,     KC_ENT, XXXXXXX, KC_RGUI
+                                      //`--------------------------'  `--------------------------'
   ),
 
   [2] = LAYOUT_split_3x6_3_ex2(
@@ -220,10 +250,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
       KC_LSFT, KC_LEFT,KC_DOWN,KC_RIGHT,  KC_PGDN,  KC_END, KC_DEL,      KC_END,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9, XXXXXXX,
   //|--------+--------+--------+--------+--------+--------+--------'  `--------+--------+--------+--------+--------+--------+--------|
-      KC_LCTL, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                      XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,  QK_REP,
+      KC_LCTL, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX, XXXXXXX,                      XXXXXXX, XXXXXXX, DE_DQUO, DE_QUOT, DE_SCLN,  QK_REP,
   //|--------+--------+--------+--------+--------+--------+--------.  ,--------+--------+--------+--------+--------+--------+--------|
                                           KC_LGUI, XXXXXXX,  KC_ENT,     KC_SPC,   MO(3), KC_RGUI
-                                      //`--------------------------'  `--------------------------'  
+                                      //`--------------------------'  `--------------------------'
   ),
 
   [3] = LAYOUT_split_3x6_3_ex2(
@@ -250,7 +280,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
                                           KC_LGUI, TL_LOWR,  KC_SPC,     KC_ENT, TL_UPPR, KC_RALT
                                       //`--------------------------'  `--------------------------'
-
   ),
 
   [1] = LAYOUT_split_3x6_3(

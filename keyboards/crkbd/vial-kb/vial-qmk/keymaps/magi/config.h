@@ -4,10 +4,12 @@
 #define VIAL_UNLOCK_COMBO_ROWS {0, 0}
 #define VIAL_UNLOCK_COMBO_COLS {0, 1}
 #define SPLIT_USB_DETECT
-#pragma once
-// macOS-style Option+hex input
-#define UNICODE_SELECTED_MODES UNICODE_MODE_MACOS
 
+// Support both Unicode modes (switched dynamically via OS detection)
+#define UNICODE_SELECTED_MODES UNICODE_MODE_MACOS, UNICODE_MODE_LINUX
+
+// OS Detection: only fire callback once after stable detection
+#define OS_DETECTION_SINGLE_REPORT
 
 // Disable all other effects to save memory
 #undef ENABLE_RGB_MATRIX_CYCLE_LEFT_RIGHTRGB_MATRIX_SOLID_COLOR
