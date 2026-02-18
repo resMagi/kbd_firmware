@@ -158,7 +158,7 @@ const key_led_map_t right_spiral_map[23] = {
 };
 
 // ============================================================
-// RGB Matrix — color per key, with OS indicator
+// RGB Matrix — color per key
 // ============================================================
 #ifdef RGB_MATRIX_ENABLE
 bool rgb_matrix_indicators_user(void) {
